@@ -1,0 +1,46 @@
+import numpy as np
+from scipy.signal import savgol_filter
+
+def align_smooth(*args):
+    # -------- This section aligns the data to a standardized wavelengths, since data was extrapolated from research papers the x axis are messy -----
+    
+    # Initialize arrays for aligning data
+    all_wavelengths = []  # to collect all unique wavelengths
+    aligned_data = []     # array to store aligned datasets
+    
+    # Create a standardized wavelength array
+    for data in args:
+        data[:, 0] = np.round(data[:, 0])  # Round wavelengths to nearest integer
+        all_wavelengths = np.union1d(all_wavelengths, data[:, 0])  # Store unique wavelengths
+        aligned_data.append(data)  # Package data in list
+    
+    # Initialize array for smoothing data later
+    aligned_smoothed_data = [None] * len(args)
+    
+    # Align data to standardized x axis (wavelengths)
+    for i in range(len(args)):
+        data = aligned_data[i]
+        # Initialize aligned absorbance values
+        aligned_absorbance = np.full(len(all_wavelengths), np.nan)  # Fill with NaNs to start, because why not
+
+        # Align data to new standardized wavelengths
+        for j in range(len(all_wavelengths)):
+            idx = np.where(data[:, 0] == all_wavelengths[j])[0]
+            if idx.size > 0:
+                aligned_absorbance[j] = data[idx[0], 1]
+        
+        # Remove duplicates that may have slipped through my super flawless code & banish NaNs
+        valid_indices = ~np.isnan(aligned_absorbance)
+        aligned_wavelengths = all_wavelengths[valid_indices]
+        aligned_absorbance = aligned_absorbance[valid_indices]
+
+        # ----- Now that I have eliminated are rounded the crap out of the data I need to smooth so that the data/me feels more secure about its curves
+        # Smoothing using a Savitzky-Golay filter because moving mean smoothing is for suckers
+        polynomial_order = 2
+        frame_size = 7  # Chosen a bit arbitrarily, but wanted to maintain at least 10nm accuracy
+        smoothed_absorbance = savgol_filter(aligned_absorbance, frame_size, polynomial_order)
+
+        # Store aligned and smoothed data
+        aligned_smoothed_data[i] = np.column_stack((aligned_wavelengths, smoothed_absorbance))
+
+    return aligned_smoothed_data
